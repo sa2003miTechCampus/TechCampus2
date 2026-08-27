@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import logging
+import random
+import threading
+import time
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Callable, Protocol, TypeVar
 
 import pandas as pd
 import yfinance as yf
@@ -11,6 +14,61 @@ from .cache import TTLCache
 from .config import get_settings
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+class _RateLimiter:
+    """Spaces out requests to Yahoo Finance to avoid tripping its anti-bot rate limiter.
+
+    Yahoo blocks by client/IP once requests arrive too quickly, so this is a single
+    process-wide limiter shared by every ticker fetch rather than one per instance.
+    """
+
+    def __init__(self, min_interval_seconds: float) -> None:
+        self._min_interval = min_interval_seconds
+        self._lock = threading.Lock()
+        self._last_call = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last_call
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+            self._last_call = time.monotonic()
+
+
+_rate_limiter = _RateLimiter(get_settings().yahoo_min_request_interval_seconds)
+
+
+def _is_retryable_error(exc: Exception) -> bool:
+    message = str(exc)
+    return "429" in message or "Too Many Requests" in message or "Expecting value" in message
+
+
+def _call_with_retry(func: Callable[[], T], ticker: str) -> T:
+    settings = get_settings()
+    last_exc: Exception | None = None
+    for attempt in range(settings.yahoo_max_retries + 1):
+        _rate_limiter.wait()
+        try:
+            return func()
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            if attempt >= settings.yahoo_max_retries or not _is_retryable_error(exc):
+                raise
+            backoff = settings.yahoo_retry_backoff_seconds
+            delay = backoff[min(attempt, len(backoff) - 1)] + random.uniform(0, 1.0)
+            logger.warning(
+                "rate-limited fetching %s, retrying in %.1fs (attempt %d/%d)",
+                ticker,
+                delay,
+                attempt + 1,
+                settings.yahoo_max_retries,
+            )
+            time.sleep(delay)
+    raise last_exc  # pragma: no cover
 
 
 class DataUnavailableError(Exception):
@@ -89,9 +147,11 @@ class YFinanceProvider:
         return self._history_cache.get_or_set(ticker, lambda: self._fetch_history(ticker))
 
     def _fetch_quote(self, ticker: str) -> QuoteData:
+        def fetch() -> dict:
+            return yf.Ticker(ticker).info or {}
+
         try:
-            yf_ticker = yf.Ticker(ticker)
-            info = yf_ticker.info or {}
+            info = _call_with_retry(fetch, ticker)
         except Exception as exc:  # noqa: BLE001
             raise DataUnavailableError(ticker, f"failed to fetch info: {exc}") from exc
 
@@ -129,10 +189,15 @@ class YFinanceProvider:
         return float(history["Close"].iloc[-1])
 
     def _fetch_fundamentals(self, ticker: str) -> FundamentalsData:
+        def fetch_balance_sheet() -> pd.DataFrame:
+            return yf.Ticker(ticker).balance_sheet
+
+        def fetch_income_stmt() -> pd.DataFrame:
+            return yf.Ticker(ticker).income_stmt
+
         try:
-            yf_ticker = yf.Ticker(ticker)
-            balance_sheet = yf_ticker.balance_sheet
-            income_stmt = yf_ticker.income_stmt
+            balance_sheet = _call_with_retry(fetch_balance_sheet, ticker)
+            income_stmt = _call_with_retry(fetch_income_stmt, ticker)
         except Exception as exc:  # noqa: BLE001
             raise DataUnavailableError(ticker, f"failed to fetch financial statements: {exc}") from exc
 
@@ -169,11 +234,14 @@ class YFinanceProvider:
 
     def _fetch_history(self, ticker: str) -> pd.DataFrame:
         settings = get_settings()
-        try:
-            yf_ticker = yf.Ticker(ticker)
-            history = yf_ticker.history(
+
+        def fetch() -> pd.DataFrame:
+            return yf.Ticker(ticker).history(
                 period=settings.history_period, interval=settings.history_interval, auto_adjust=True
             )
+
+        try:
+            history = _call_with_retry(fetch, ticker)
         except Exception as exc:  # noqa: BLE001
             raise DataUnavailableError(ticker, f"failed to fetch price history: {exc}") from exc
         if history is None or history.empty:
