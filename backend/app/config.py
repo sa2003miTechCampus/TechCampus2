@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     technical_weight: float = 0.6
     fundamental_weight: float = 0.4
 
-    max_parallel_data_fetches: int = 2
-    yahoo_min_request_interval_seconds: float = 0.6
+    max_parallel_data_fetches: int = 4
+    yahoo_min_request_interval_seconds: float = 0.25
     yahoo_max_retries: int = 4
     yahoo_retry_backoff_seconds: list[float] = [3.0, 8.0, 20.0, 45.0]
 

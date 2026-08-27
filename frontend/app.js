@@ -103,12 +103,18 @@ function renderDailyCard(pick) {
 }
 
 async function loadDaily(refresh = false) {
-  dailyStatus.textContent = "جاري تحميل التوصيات اليومية...";
   dailyStatus.classList.remove("error");
   dailyGrid.innerHTML = "";
+  const startedAt = Date.now();
+  dailyStatus.textContent = "جاري فحص الأسهم وتحليلها... قد يستغرق هذا حتى دقيقة عند أول تحميل";
+  const tickInterval = setInterval(() => {
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    dailyStatus.textContent = `جاري فحص الأسهم وتحليلها... (${seconds} ثانية)`;
+  }, 1000);
   try {
     const url = `${API_BASE}/api/recommendations/daily?limit=12${refresh ? "&refresh=true" : ""}`;
     const data = await fetchJSON(url);
+    clearInterval(tickInterval);
     dailyMeta.textContent = `من أصل ${data.universe_size} سهماً تمت مراجعته، ${data.compliant_count} سهماً متوافقاً شرعياً`;
     if (data.picks.length === 0) {
       dailyStatus.textContent = "لا توجد توصيات متاحة حالياً.";
@@ -117,6 +123,7 @@ async function loadDaily(refresh = false) {
     dailyStatus.textContent = "";
     data.picks.forEach((pick) => dailyGrid.appendChild(renderDailyCard(pick)));
   } catch (error) {
+    clearInterval(tickInterval);
     dailyStatus.textContent = error.message;
     dailyStatus.classList.add("error");
   }
