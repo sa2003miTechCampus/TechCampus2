@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>المحلل الحلال | تحليل الأسهم الأمريكية المتوافقة مع الشريعة</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark">ح</div>
+        <div class="brand-text">
+          <h1>المحلل الحلال</h1>
+          <p>تحليل احترافي للأسهم الأمريكية المتوافقة مع الشريعة الإسلامية</p>
+        </div>
+      </div>
+      <form class="search-form" id="search-form">
+        <input
+          type="text"
+          id="ticker-input"
+          placeholder="ابحث برمز السهم، مثال: AAPL"
+          autocomplete="off"
+        />
+        <button type="submit">تحليل السهم</button>
+      </form>
+    </header>
+
+    <main class="app-main">
+      <section class="panel" id="detail-panel" hidden>
+        <div id="detail-content"></div>
+      </section>
+
+      <section class="panel" id="daily-panel">
+        <div class="panel-header">
+          <h2>أفضل التوصيات اليومية</h2>
+          <div class="panel-header-actions">
+            <span id="daily-meta" class="muted"></span>
+            <button id="refresh-daily" class="ghost-btn" type="button">تحديث</button>
+          </div>
+        </div>
+        <div id="daily-status" class="status-line"></div>
+        <div id="daily-grid" class="cards-grid"></div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p id="global-disclaimer">
+        هذا التطبيق يقدّم تحليلاً آلياً لأغراض تعليمية وبحثية فقط، ولا يُعد استشارة مالية أو
+        فتوى شرعية مُلزمة. الأداء السابق لا يضمن نتائج مستقبلية. يُرجى استشارة مستشار مالي
+        مرخّص وهيئة شرعية معتمدة قبل اتخاذ أي قرار استثماري.
+      </p>
+    </footer>
+  </div>
+
+  <template id="daily-card-template">
+    <article class="pick-card" tabindex="0">
+      <div class="pick-card-top">
+        <span class="pick-ticker"></span>
+        <span class="badge compliance-badge"></span>
+      </div>
+      <h3 class="pick-name"></h3>
+      <p class="pick-sector muted"></p>
+      <div class="pick-price-row">
+        <span class="pick-price"></span>
+        <span class="pick-change"></span>
+      </div>
+      <div class="pick-card-bottom">
+        <span class="badge recommendation-badge"></span>
+        <span class="pick-score"></span>
+      </div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
