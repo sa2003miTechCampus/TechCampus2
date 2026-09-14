@@ -3,6 +3,15 @@ from __future__ import annotations
 from .config import get_settings
 from .schemas import FundamentalMetrics, ScoreBreakdown, TechnicalIndicators
 
+# Shared with app/backtesting.py so the historical simulation scores each day using the
+# exact same formula as the live technical score - a backtest that drifted from production
+# logic would validate nothing.
+TREND_WEIGHT = 0.40
+RSI_WEIGHT = 0.20
+MACD_WEIGHT = 0.15
+BOLLINGER_WEIGHT = 0.15
+WEEK52_WEIGHT = 0.10
+
 
 def _clip(value: float, low: float = -100.0, high: float = 100.0) -> float:
     return max(low, min(high, value))
@@ -28,15 +37,15 @@ def compute_technical_score(indicators: TechnicalIndicators) -> float:
     if indicators.sma_50 is not None and indicators.sma_200 is not None:
         trend_signals.append(1.0 if indicators.sma_50 > indicators.sma_200 else -1.0)
     if trend_signals:
-        components.append((sum(trend_signals) / len(trend_signals) * 100, 0.40))
+        components.append((sum(trend_signals) / len(trend_signals) * 100, TREND_WEIGHT))
 
     if indicators.rsi_14 is not None:
         rsi_score = _clip((50 - indicators.rsi_14) * 2.5)
-        components.append((rsi_score, 0.20))
+        components.append((rsi_score, RSI_WEIGHT))
 
     if indicators.macd_histogram is not None and indicators.last_price:
         macd_score = _clip((indicators.macd_histogram / indicators.last_price) * 1000)
-        components.append((macd_score, 0.15))
+        components.append((macd_score, MACD_WEIGHT))
 
     if (
         indicators.bollinger_upper is not None
@@ -46,7 +55,7 @@ def compute_technical_score(indicators: TechnicalIndicators) -> float:
         band_range = indicators.bollinger_upper - indicators.bollinger_lower
         position = (indicators.last_price - indicators.bollinger_lower) / band_range
         bollinger_score = _clip((0.5 - position) * 200)
-        components.append((bollinger_score, 0.15))
+        components.append((bollinger_score, BOLLINGER_WEIGHT))
 
     if (
         indicators.week52_high is not None
@@ -57,7 +66,7 @@ def compute_technical_score(indicators: TechnicalIndicators) -> float:
             indicators.week52_high - indicators.week52_low
         )
         proximity_score = _clip((proximity - 0.5) * 100)
-        components.append((proximity_score, 0.10))
+        components.append((proximity_score, WEEK52_WEIGHT))
 
     score = _weighted_average(components)
     return round(_clip(score) if score is not None else 0.0, 2)

@@ -16,6 +16,9 @@ class Settings(BaseSettings):
 
     history_period: str = "1y"
     history_interval: str = "1d"
+    backtest_history_period: str = "5y"
+    backtest_warmup_days: int = 200
+    backtest_max_universe_tickers: int = 20
 
     screening_max_debt_to_market_cap: float = 0.33
     screening_max_cash_securities_to_market_cap: float = 0.33

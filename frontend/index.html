@@ -46,6 +46,25 @@
         <div id="daily-status" class="status-line"></div>
         <div id="daily-grid" class="cards-grid"></div>
       </section>
+
+      <section class="panel" id="backtest-panel">
+        <div class="panel-header">
+          <h2>اختبار خلفي للاستراتيجية (Backtesting)</h2>
+        </div>
+        <p class="muted" style="margin-bottom:14px;">
+          شغّل الاستراتيجية الفنية على بيانات تاريخية حقيقية لسنوات سابقة وشوف هل كانت
+          ستربح أو تخسر فعلاً — قبل الوثوق بأي توصية بمال حقيقي.
+        </p>
+        <form class="search-form" id="backtest-form" style="max-width:520px;margin-bottom:10px;">
+          <input type="text" id="backtest-ticker-input" placeholder="رمز السهم، مثال: AAPL" autocomplete="off" />
+          <button type="submit">تشغيل الاختبار</button>
+        </form>
+        <button id="run-universe-backtest" class="ghost-btn" type="button">
+          اختبار على مجموعة الأسهم كاملة
+        </button>
+        <div id="backtest-status" class="status-line"></div>
+        <div id="backtest-content"></div>
+      </section>
     </main>
 
     <footer class="app-footer">

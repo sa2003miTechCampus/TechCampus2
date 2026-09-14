@@ -139,6 +139,57 @@ class PricePoint(BaseModel):
     close: float
 
 
+class BacktestTrade(BaseModel):
+    entry_date: str
+    exit_date: str | None
+    entry_price: float
+    exit_price: float
+    return_pct: float
+    hold_days: int
+    still_open: bool
+
+
+class EquityPoint(BaseModel):
+    date: str
+    value: float
+
+
+class BacktestResult(BaseModel):
+    ticker: str
+    start_date: str
+    end_date: str
+    initial_capital: float
+    final_capital: float
+    total_return_pct: float
+    cagr_pct: float
+    max_drawdown_pct: float
+    num_trades: int
+    win_rate_pct: float | None
+    buy_and_hold_return_pct: float
+    trades: list[BacktestTrade]
+    equity_curve: list[EquityPoint]
+    methodology_note_ar: str
+
+
+class UniverseBacktestEntry(BaseModel):
+    ticker: str
+    total_return_pct: float
+    buy_and_hold_return_pct: float
+    num_trades: int
+    win_rate_pct: float | None
+    beat_buy_and_hold: bool
+
+
+class UniverseBacktestSummary(BaseModel):
+    tested_count: int
+    failed_count: int
+    average_strategy_return_pct: float
+    average_buy_and_hold_return_pct: float
+    pct_beating_buy_and_hold: float
+    results: list[UniverseBacktestEntry]
+    methodology_note_ar: str
+
+
 class ErrorResponse(BaseModel):
     error_ar: str
     error_en: str

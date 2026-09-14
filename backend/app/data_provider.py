@@ -111,7 +111,7 @@ class MarketDataProvider(Protocol):
 
     def get_fundamentals(self, ticker: str) -> FundamentalsData: ...
 
-    def get_price_history(self, ticker: str) -> pd.DataFrame: ...
+    def get_price_history(self, ticker: str, period: str | None = None) -> pd.DataFrame: ...
 
 
 def _find_row_value(df: pd.DataFrame, candidates: list[str]) -> float | None:
@@ -143,8 +143,11 @@ class YFinanceProvider:
     def get_fundamentals(self, ticker: str) -> FundamentalsData:
         return self._fundamentals_cache.get_or_set(ticker, lambda: self._fetch_fundamentals(ticker))
 
-    def get_price_history(self, ticker: str) -> pd.DataFrame:
-        return self._history_cache.get_or_set(ticker, lambda: self._fetch_history(ticker))
+    def get_price_history(self, ticker: str, period: str | None = None) -> pd.DataFrame:
+        settings = get_settings()
+        resolved_period = period or settings.history_period
+        cache_key = f"{ticker}:{resolved_period}"
+        return self._history_cache.get_or_set(cache_key, lambda: self._fetch_history(ticker, resolved_period))
 
     def _fetch_quote(self, ticker: str) -> QuoteData:
         def fetch() -> dict:
@@ -183,7 +186,7 @@ class YFinanceProvider:
         )
 
     def _fetch_last_close(self, ticker: str) -> float | None:
-        history = self._fetch_history(ticker)
+        history = self._fetch_history(ticker, get_settings().history_period)
         if history is None or history.empty:
             return None
         return float(history["Close"].iloc[-1])
@@ -232,12 +235,12 @@ class YFinanceProvider:
             data_complete=data_complete,
         )
 
-    def _fetch_history(self, ticker: str) -> pd.DataFrame:
+    def _fetch_history(self, ticker: str, period: str) -> pd.DataFrame:
         settings = get_settings()
 
         def fetch() -> pd.DataFrame:
             return yf.Ticker(ticker).history(
-                period=settings.history_period, interval=settings.history_interval, auto_adjust=True
+                period=period, interval=settings.history_interval, auto_adjust=True
             )
 
         try:

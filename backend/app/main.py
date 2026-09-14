@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings
-from .routers import recommendations, screening, stocks
+from .routers import backtest, recommendations, screening, stocks
 
 settings = get_settings()
 
@@ -25,6 +25,7 @@ app.add_middleware(
 app.include_router(stocks.router)
 app.include_router(recommendations.router)
 app.include_router(screening.router)
+app.include_router(backtest.router)
 
 
 @app.get("/api/health", tags=["health"])

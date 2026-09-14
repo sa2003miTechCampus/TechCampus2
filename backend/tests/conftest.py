@@ -55,7 +55,7 @@ class FakeProvider:
             raise DataUnavailableError(ticker, "no fake fundamentals configured")
         return self.fundamentals[ticker]
 
-    def get_price_history(self, ticker: str) -> pd.DataFrame:
+    def get_price_history(self, ticker: str, period: str | None = None) -> pd.DataFrame:
         if ticker not in self.histories:
             raise DataUnavailableError(ticker, "no fake history configured")
         return self.histories[ticker]

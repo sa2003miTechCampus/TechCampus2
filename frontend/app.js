@@ -15,6 +15,11 @@ const cardTemplate = document.getElementById("daily-card-template");
 const searchForm = document.getElementById("search-form");
 const tickerInput = document.getElementById("ticker-input");
 const refreshBtn = document.getElementById("refresh-daily");
+const backtestForm = document.getElementById("backtest-form");
+const backtestTickerInput = document.getElementById("backtest-ticker-input");
+const backtestStatus = document.getElementById("backtest-status");
+const backtestContent = document.getElementById("backtest-content");
+const runUniverseBacktestBtn = document.getElementById("run-universe-backtest");
 
 function formatMoney(value, currency) {
   if (value === null || value === undefined) return "—";
@@ -303,5 +308,119 @@ searchForm.addEventListener("submit", (event) => {
 });
 
 refreshBtn.addEventListener("click", () => loadDaily(true));
+
+function renderBacktestTrades(trades) {
+  if (!trades.length) {
+    return `<p class="muted">لم تُنفَّذ أي صفقة خلال فترة الاختبار.</p>`;
+  }
+  const rows = trades
+    .map((trade) => {
+      const changeClass = trade.return_pct >= 0 ? "positive" : "negative";
+      return `
+        <div class="metric-row">
+          <span dir="ltr" style="unicode-bidi:isolate;">${trade.entry_date} → ${trade.exit_date || "لا يزال مفتوحاً"}</span>
+          <span class="pick-change ${changeClass}">${formatPct(trade.return_pct)} (${trade.hold_days} يوم)</span>
+        </div>
+      `;
+    })
+    .join("");
+  return `<div style="margin-top:8px;">${rows}</div>`;
+}
+
+function renderBacktestResult(result) {
+  const strategyClass = result.total_return_pct >= 0 ? "positive" : "negative";
+  const beatBuyHold = result.total_return_pct > result.buy_and_hold_return_pct;
+
+  backtestContent.innerHTML = `
+    <div class="chart-wrap"><canvas id="backtest-chart"></canvas></div>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <h3>${result.ticker} — من <span dir="ltr" style="unicode-bidi:isolate;">${result.start_date}</span> إلى <span dir="ltr" style="unicode-bidi:isolate;">${result.end_date}</span></h3>
+        <div class="metric-row"><span>العائد الإجمالي (الاستراتيجية)</span><span class="pick-change ${strategyClass}">${formatPct(result.total_return_pct)}</span></div>
+        <div class="metric-row"><span>عائد الشراء والاحتفاظ (Buy &amp; Hold)</span><span>${formatPct(result.buy_and_hold_return_pct)}</span></div>
+        <div class="metric-row"><span>معدل النمو السنوي المركب (CAGR)</span><span>${formatPct(result.cagr_pct)}</span></div>
+        <div class="metric-row"><span>أقصى تراجع (Max Drawdown)</span><span>${formatPct(result.max_drawdown_pct)}</span></div>
+        <div class="metric-row"><span>عدد الصفقات</span><span>${result.num_trades}</span></div>
+        <div class="metric-row"><span>نسبة الصفقات الرابحة</span><span>${result.win_rate_pct !== null ? result.win_rate_pct.toFixed(1) + "%" : "—"}</span></div>
+        <div class="metric-row"><span>رأس المال الابتدائي → النهائي</span><span dir="ltr" style="unicode-bidi:isolate;">${formatMoney(result.initial_capital, "USD")} → ${formatMoney(result.final_capital, "USD")}</span></div>
+      </div>
+      <div class="detail-card">
+        <h3>${beatBuyHold ? "الاستراتيجية تفوقت على الشراء والاحتفاظ" : "الشراء والاحتفاظ كان أفضل من الاستراتيجية"}</h3>
+        <p class="muted">سجل الصفقات:</p>
+        ${renderBacktestTrades(result.trades)}
+      </div>
+    </div>
+    <div class="disclaimer-box">${result.methodology_note_ar}</div>
+  `;
+
+  const canvas = document.getElementById("backtest-chart");
+  const points = result.equity_curve.map((p) => ({ close: p.value }));
+  requestAnimationFrame(() => drawLineChart(canvas, points));
+}
+
+async function runTickerBacktest(rawTicker) {
+  const ticker = rawTicker.trim().toUpperCase();
+  if (!ticker) return;
+
+  backtestStatus.textContent = "جاري تشغيل الاختبار الخلفي... قد يستغرق بضع ثوانٍ";
+  backtestStatus.classList.remove("error");
+  backtestContent.innerHTML = "";
+
+  try {
+    const result = await fetchJSON(`${API_BASE}/api/backtest/${encodeURIComponent(ticker)}`);
+    backtestStatus.textContent = "";
+    renderBacktestResult(result);
+  } catch (error) {
+    backtestStatus.textContent = error.message;
+    backtestStatus.classList.add("error");
+  }
+}
+
+function renderUniverseBacktest(summary) {
+  const rows = summary.results
+    .map((entry) => {
+      const strategyClass = entry.total_return_pct >= 0 ? "positive" : "negative";
+      return `
+        <div class="metric-row">
+          <span>${entry.ticker} ${entry.beat_buy_and_hold ? "✅" : ""}</span>
+          <span class="pick-change ${strategyClass}">${formatPct(entry.total_return_pct)} مقابل ${formatPct(entry.buy_and_hold_return_pct)} (Buy&amp;Hold)</span>
+        </div>
+      `;
+    })
+    .join("");
+
+  backtestContent.innerHTML = `
+    <div class="detail-card">
+      <h3>ملخص الاختبار على ${summary.tested_count} سهماً (فشل ${summary.failed_count})</h3>
+      <div class="metric-row"><span>متوسط عائد الاستراتيجية</span><span>${formatPct(summary.average_strategy_return_pct)}</span></div>
+      <div class="metric-row"><span>متوسط عائد الشراء والاحتفاظ</span><span>${formatPct(summary.average_buy_and_hold_return_pct)}</span></div>
+      <div class="metric-row"><span>نسبة الأسهم التي تفوقت فيها الاستراتيجية</span><span>${summary.pct_beating_buy_and_hold.toFixed(1)}%</span></div>
+      <div style="margin-top:10px;">${rows}</div>
+    </div>
+    <div class="disclaimer-box">${summary.methodology_note_ar}</div>
+  `;
+}
+
+async function runUniverseBacktest() {
+  backtestStatus.textContent = "جاري اختبار مجموعة الأسهم... قد يستغرق دقيقة تقريباً";
+  backtestStatus.classList.remove("error");
+  backtestContent.innerHTML = "";
+
+  try {
+    const summary = await fetchJSON(`${API_BASE}/api/backtest/universe?limit=20`);
+    backtestStatus.textContent = "";
+    renderUniverseBacktest(summary);
+  } catch (error) {
+    backtestStatus.textContent = error.message;
+    backtestStatus.classList.add("error");
+  }
+}
+
+backtestForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  runTickerBacktest(backtestTickerInput.value);
+});
+
+runUniverseBacktestBtn.addEventListener("click", () => runUniverseBacktest());
 
 loadDaily();
